@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teeyool</title>
+    <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/@turf/turf"></script>
+
+    <style>
+        /* Previous styles remain the same */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        #coordinates {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            position: absolute;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            max-width: 300px;
+            top: 10px;
+            left: 10px;
+        }
+        #route-details {
+            position: absolute; /* Ensures the section is positioned relative to the map */
+            top: 20px; /* Adjust distance from the top of the map */
+            left: 20px; /* Adjust distance from the left of the map */
+            z-index: 1000; /* Higher than the map's z-index to ensure it's on top */
+            background-color: white; /* Makes the background white */
+            padding: 15px; /* Adds space inside the section for better readability */
+            border-radius: 8px; /* Optional: Rounds the corners */
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2); /* Optional: Adds a shadow for better visibility */
+            max-width: 300px; /* Set a max width to prevent it from being too wide */
+            overflow-y: auto; /* Allows scrolling if content overflows */
+            font-family: Arial, sans-serif; /* Sets a clean font */
+        }
+
+        .instruction-container {
+            min-height: 100px;
+            margin: 10px 0;
+        }
+        .instruction-step {
+            display: none;
+            margin: 8px 0;
+            padding: 5px;
+        }
+        .instruction-step.active {
+            display: block;
+        }
+        .navigation-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #ccc;
+        }
+        .nav-button {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .nav-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .step-indicator {
+            line-height: 30px;
+        }
+        .reset-button {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            padding: 10px;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .export-button {
+        position: absolute;
+        bottom: 70px;
+        right: 20px;
+        z-index: 1000;
+        padding: 10px;
+        background-color: white;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+    <div id="coordinates">Coordinates: N/A</div>
+    <div id="route-details">Select two points on the map to calculate route</div>
+    <button class="reset-button" onclick="resetMap()">Reset Map</button>
+    <button class="export-button" id="Download">Export Map</button>
+
+    <div id="map"></div>
+
+    <script>
+        
+        document.getElementById('Download').addEventListener('click', () => {
+            const width = 1920; // Desired width in pixels
+            const height = 1080; // Desired height in pixels
+            const scale = 2; // Scale factor for higher resolution (e.g., 2 for 2x)
+
+            // Define the two points (start and end) for the route (for example)
+            const point1 = { lng: 34.7818, lat: 31.2650 }; // Example coordinates for start point
+            const point2 = { lng: 34.7890, lat: 31.2610 }; // Example coordinates for end point
+
+            // Send the coordinates to the server to get street names
+            fetch('/getStreetNames', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    startCoords: [point1.lng, point1.lat],
+                    endCoords: [point2.lng, point2.lat]
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const startStreetName = data.streetNames[0] || 'UnknownStart'; // Use the first street name
+                const endStreetName = data.streetNames[1] || 'UnknownEnd'; // Use the second street name (if available)
+                const filename = `${startStreetName}_${endStreetName}.jpg`;
+
+                // Resize the map canvas
+                const mapCanvas = map.getCanvas();
+                const originalWidth = mapCanvas.width;
+                const originalHeight = mapCanvas.height;
+                const originalStyle = map.getContainer().style;
+
+                // Set the new size
+                map.getContainer().style.width = `${width}px`;
+                map.getContainer().style.height = `${height}px`;
+                map.resize();
+
+                // Adjust DPR for high resolution
+                const oldPixelRatio = window.devicePixelRatio;
+                Object.defineProperty(window, 'devicePixelRatio', { get: () => scale });
+
+                // Render the map and export it
+                map.once('render', () => {
+                    const canvas = map.getCanvas();
+                    const image = canvas.toDataURL('image/jpeg'); // Export as JPG
+
+                    // Restore the original dimensions and DPR
+                    map.getContainer().style = originalStyle;
+                    map.resize();
+                    Object.defineProperty(window, 'devicePixelRatio', { get: () => oldPixelRatio });
+
+                    // Create a download link
+                    const link = document.createElement('a');
+                    link.href = image;
+                    link.download = filename; // Use the street names in the filename
+                    link.click();
+                });
+
+                map.triggerRepaint(); // Ensure the map is fully rendered
+            })
+            .catch(error => {
+                console.error('Error fetching street names:', error);
+                // Handle the error gracefully, e.g., fallback to a default filename
+                const link = document.createElement('a');
+                link.href = map.getCanvas().toDataURL('image/jpeg');
+                link.download = 'map_1920x1080.jpg';
+                link.click();
+            });
+        });
+
+
+        
+        function getTurnDirection(currentAngle, nextAngle) {
+            const angleDiff = ((nextAngle - currentAngle + 540) % 360) - 180;
+            if (Math.abs(angleDiff) < 15) return "Continue straight";
+            if (angleDiff > 0) {
+                if (angleDiff < 45) return "Turn slightly right";
+                if (angleDiff < 135) return "Turn right";
+                return "Turn sharp right";
+            }
+            if (angleDiff > -45) return "Turn slightly left";
+            if (angleDiff > -135) return "Turn left";
+            return "Turn sharp left";
+        }
+    
+        function formatDistance(meters) {
+            return meters < 1000
+                ? `${Math.round(meters)} meters`
+                : `${(meters / 1000).toFixed(2)} km`;
+        }
+    
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            
+            if (hours > 0) {
+                return `${hours} hr ${remainingMinutes} min`;
+            }
+            return `${minutes} min`;
+        }
+    
+        function generateInstructions(routeData) {
+            try {
+                const coordinates = routeData.geometry.coordinates.flat();
+                const instructions = [];
+                let currentDistance = 0;
+                const turnThreshold = 30; // Set the minimum angle (in degrees) to consider as a turn
+                const maxTurnAngle = 150; // Set the maximum angle (in degrees) to consider as a turn
+
+                for (let i = 1; i < coordinates.length - 1; i++) {
+                    const start = turf.point(coordinates[i - 1]);
+                    const current = turf.point(coordinates[i]);
+                    const next = turf.point(coordinates[i + 1]);
+
+                    const currentBearing = turf.bearing(start, current);
+                    const nextBearing = turf.bearing(current, next);
+                    const distance = turf.distance(start, current, { units: 'kilometers' });
+                    
+                    const distanceMeters = distance * 1000;
+
+                    // Calculate the angle between the current and next bearing
+                    const angleDifference = Math.abs(currentBearing - nextBearing);
+                    const adjustedAngleDifference = angleDifference > 180 ? 360 - angleDifference : angleDifference;
+
+                    // Check if the angle difference is within the defined turn range
+                    if (adjustedAngleDifference >= turnThreshold && adjustedAngleDifference <= maxTurnAngle && distanceMeters > 10) {
+                        const turn = getTurnDirection(currentBearing, nextBearing);
+                        
+                        // If the last instruction is a straight continuation, merge it
+                        if (instructions.length > 0 && instructions[instructions.length - 1].direction === 'straight') {
+                            instructions[instructions.length - 1].distance += distanceMeters; // Merge distances
+                        } else {
+                            instructions.push({
+                                step: instructions.length + 1,
+                                distance: distanceMeters,
+                                direction: turn
+                            });
+                        }
+                    } else if (distanceMeters > 10) {
+                        // If it's a straight continuation, add it as a straight instruction
+                        if (instructions.length > 0 && instructions[instructions.length - 1].direction === 'straight') {
+                            instructions[instructions.length - 1].distance += distanceMeters; // Merge distances
+                        } else {
+                            instructions.push({
+                                step: instructions.length + 1,
+                                distance: distanceMeters,
+                                direction: 'straight'
+                            });
+                        }
+                    }
+                }
+
+                return {
+                    instructions,
+                    totalDistance: parseFloat(routeData.length),
+                    totalTime: parseFloat(routeData.time)
+                };
+            } catch (error) {
+                console.error("Error in generateInstructions:", error);
+                throw error;
+            }
+        }
+
+
+    
+        function updateRouteDetails(routeData) {
+            try {
+                const { instructions, totalDistance, totalTime } = generateInstructions(routeData);
+                routeSegments = []; // Reset segments
+
+                let routeDescription = '<h3>Navigation Instructions</h3>';
+                routeDescription += '<div class="instruction-container">';
+                instructions.forEach((step, index) => {
+                    const startCoord = routeData.geometry.coordinates[index];
+                    const endCoord = routeData.geometry.coordinates[index + 1];
+                    routeSegments.push({ startCoord, endCoord }); // Store each segment
+
+                    routeDescription += `
+                        <div class="instruction-step ${index === 0 ? 'active' : ''}" data-step="${index}">
+                            <strong>Step ${step.step}:</strong> 
+                            ${step.direction} for ${formatDistance(step.distance)}
+                        </div>`;
+                });
+                routeDescription += '</div>';
+
+                routeDescription += `
+                    <div class="navigation-controls">
+                        <button class="nav-button" id="prevBtn">Previous</button>
+                        <span class="step-indicator">Step <span id="currentStep">1</span>/${instructions.length}</span>
+                        <button class="nav-button" id="nextBtn">Next</button>
+                    </div>
+                    <div class="total-distance">
+                        Total Distance: ${formatDistance(totalDistance)}
+                    </div>
+                    <div class="total-time">
+                        Estimated Time: ${formatTime(totalTime)}
+                    </div>`;
+
+                document.getElementById('route-details').innerHTML = routeDescription;
+
+                document.getElementById('prevBtn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    navigateInstruction(-1);
+                });
+
+                document.getElementById('nextBtn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    navigateInstruction(1);
+                });
+
+                document.getElementById('prevBtn').disabled = true;
+                document.getElementById('nextBtn').disabled = instructions.length <= 1;
+            } catch (error) {
+                console.error("Error updating route details:", error);
+                document.getElementById('route-details').textContent = 'Error generating route details.';
+            }
+        }
+    
+        function makeDraggable(element) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            element.onmousedown = dragMouseDown;
+    
+            function dragMouseDown(e) {
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+    
+            function elementDrag(e) {
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                element.style.top = (element.offsetTop - pos2) + "px";
+                element.style.left = (element.offsetLeft - pos1) + "px";
+            }
+    
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+    
+        let routeSegments = []; // To store route segments
+        let currentInstructionIndex = 0; // Current instruction index
+    
+        function navigateInstruction(direction) {
+            const instructions = document.querySelectorAll('.instruction-step');
+            const currentInstruction = document.querySelector('.instruction-step.active');
+            const currentIndex = parseInt(currentInstruction.dataset.step);
+            const newIndex = currentIndex + direction;
+
+            if (newIndex >= 0 && newIndex < instructions.length) {
+                currentInstruction.classList.remove('active');
+                instructions[newIndex].classList.add('active');
+                currentInstructionIndex = newIndex;
+
+                document.getElementById('currentStep').textContent = newIndex + 1;
+                document.getElementById('prevBtn').disabled = newIndex === 0;
+                document.getElementById('nextBtn').disabled = newIndex === instructions.length - 1;
+                
+                highlightRouteSegment(newIndex);
+            }
+        }
+    
+        function highlightRouteSegment(index) {
+            console.log('Highlighting segment:', index);
+            const instructions = document.querySelectorAll('.instruction-step');
+            const coordinates = instructions[index].dataset.coordinates;
+            console.log(coordinates);
+             // Ensure coordinates are added to each step
+
+            if (coordinates) {
+                const bounds = new maplibregl.LngLatBounds();
+                coordinates.forEach(coord => bounds.extend(coord));
+                
+                // Check if the bounds are valid before fitting
+                if (!isNaN(bounds.getNorthEast().lat) && !isNaN(bounds.getNorthEast().lng)) {
+                    console.log('fit the map:');
+
+                    map.fitBounds(bounds, { padding: 20 });
+                } else {
+                    console.error('Invalid bounds:', bounds);
+                }
+            }
+        }
+        async function initializeMap() {
+      try {
+        // Load the JSON configuration
+        const response = await fetch('mapconfig.json');
+        if (!response.ok) {
+          throw new Error('Failed to load mapconfig.json');
+        }
+        const mapStyle = await response.json();
+
+        // Initialize the map
+        const map = new maplibregl.Map({
+          container: 'map', // Container ID
+          style: mapStyle,  // Use the loaded style
+          center: [34.8516, 31.0461], // Israel's approximate center [lng, lat]
+          zoom: 8 // Initial zoom level
+        });
+      } catch (error) {
+        console.error('Error initializing the map:', error);
+      }
+    }
+
+    // Call the function to initialize the map
+    initializeMap();
+    
+        // Map initialization
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    osm: {
+                        type: 'vector',
+                        tiles: ['http://localhost:8080/maps/osm/{z}/{x}/{y}.pbf']
+                    }
+                },
+                layers: [
+                    {
+                        id: 'transport_lines',
+                        type: 'line',
+                        source: 'osm',
+                        'source-layer': 'transport_lines',
+                        paint: {
+                            'line-color': '#ff0000',
+                            'line-width': 2
+                        }
+                    },
+                    {
+                        id: 'primary_roads',
+                        type: 'line',
+                        source: 'osm',
+                        'source-layer': 'primary_roads',
+                        paint: {
+                            'line-color': '#ffff00',
+                            'line-width': 3
+                        }
+                    },
+                    {
+                        id: 'water_areas_gen0',
+                        type: 'fill',
+                        source: 'osm',
+                        'source-layer': 'water_areas',
+                        paint: {
+                            'fill-color': '#87CEEB',
+                            'fill-opacity': 0.5
+                        }
+                    },
+                    {
+                        id: 'water_lines_gen0',
+                        type: 'line',
+                        source: 'osm',
+                        'source-layer': 'water_lines',
+                        paint: {
+                            'line-color': '#00BFFF',
+                            'line-width': 1
+                        }
+                    }
+                ]
+            },
+            center: [34.782, 31.253],
+            zoom: 10
+        });
+    
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+        map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }));
+    
+        const markers = [];
+        let clickedPoints = [];
+    
+        // Add click handler to route-details to stop propagation
+        const routeDetails = document.getElementById('route-details');
+        routeDetails.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    
+        const coordinatesDiv = document.getElementById('coordinates');
+        map.on('mousemove', (e) => {
+            const { lng, lat } = e.lngLat;
+            coordinatesDiv.textContent = `Coordinates: ${lng.toFixed(5)}, ${lat.toFixed(5)}`;
+        });
+    
+        map.on('click', (e) => {
+            // Check if the click target is within the route-details container
+            if (e.originalEvent.target.closest('#route-details')) {
+                return; // Don't process the click if it's on the route details
+            }
+    
+            const { lng, lat } = e.lngLat;
+            clickedPoints.push([lng, lat]);
+    
+            const marker = new maplibregl.Marker()
+                .setLngLat([lng, lat])
+                .addTo(map);
+            markers.push(marker);
+    
+            if (clickedPoints.length === 2) {
+                fetch('http://localhost:8000/find-path', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ points: clickedPoints })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (map.getSource('path-source')) {
+                        map.removeLayer('path-layer');
+                        map.removeSource('path-source');
+                    }
+    
+                    map.addSource('path-source', {
+                        type: 'geojson',
+                        data: data.geometry
+                    });
+    
+                    map.addLayer({
+                        id: 'path-layer',
+                        type: 'line',
+                        source: 'path-source',
+                        paint: {
+                            'line-color': '#00FF00',
+                            'line-width': 5
+                        }
+                    });
+    
+                    updateRouteDetails(data);
+                    clickedPoints = [];
+                })
+                .catch(err => {
+                    console.error('Error fetching path:', err);
+                    document.getElementById('route-details').textContent = 'Error fetching route details.';
+                });
+            }
+        });
+    
+        function resetMap() {
+            markers.forEach(marker => marker.remove());
+            markers.length = 0;
+            clickedPoints = [];
+            
+            if (map.getSource('path-source')) {
+                map.removeLayer('path-layer');
+                map.removeSource('path-source');
+            }
+            
+            document.getElementById('route-details').textContent = 'Select two points on the map to calculate route';
+        }
+    
+        // Make route details draggable after map loads
+        map.on('load', () => {
+            const routeDetails = document.getElementById('route-details');
+            makeDraggable(routeDetails);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+brew install postgresql
+brew install postgis
+brew install osm2pgsql
+
+brew services start postgresql
+createdb -E utf8 -O mosesberco israel
+
+psql -d israel -c "CREATE EXTENSION postgis;"
+
+psql -d israel -c "CREATE EXTENSION hstore;"
+
+
+# get the osm file 
+curl -O 'http://download.geofabrik.de/europe/great-britain/england/greater-london-latest.osm.pbf'
+
+
+
+imposm import -connection postgis://mosesberco:@localhost/israel -mapping ./Users/mosesberco/teeyool/imposm-mapping.json -read ./Users/mosesberco/teeyool/israel-and-palestine-latest.osm.pbf -write
+
+imposm import -connection postgis://mosesberco:@localhost/israel -mapping ./Users/mosesberco/teeyool/imposm-mapping.json -deployproduction
+
+
+
+
+
+#/Users/mosesberco/go/pkg/mod/cache/download/github.com/omniscale/imposm3/@v/list
+
+
+#/Users/mosesberco/go/pkg/mod/github.com/omniscale/imposm3@v0.14.0/mapping/test_mapping.json
