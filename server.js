@@ -181,6 +181,46 @@ app.post('/find-path', async (req, res) => {
 });
 
 
+app.post('/add-restaurant', async (req, res) => {
+    const { name, cuisine, lng, lat } = req.body;
+
+    if (!name || lng === undefined || lat === undefined) {
+        return res.status(400).json({ success: false, message: "Invalid data" });
+    }
+
+    console.log(name);
+
+    try {
+        const result = await pool.query(
+            `INSERT INTO restaurants (name, location)
+             VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326))
+             RETURNING *`,
+            [name, lng, lat]
+        );
+
+        res.json({ success: true, restaurant: result.rows[0] });
+    } catch (err) {
+        console.error("Error saving restaurant:", err);
+        res.status(500).json({ success: false, message: "Database error" });
+    }
+});
+
+// Get all restaurants
+app.get('/restaurants', async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT id, name, 
+                    ST_X(location) AS lng, 
+                    ST_Y(location) AS lat
+             FROM restaurants`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error fetching restaurants:", err);
+        res.status(500).json({ success: false, message: "Database error" });
+    }
+});
+
 
 
 
