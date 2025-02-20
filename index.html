@@ -10,104 +10,248 @@
     <script src="https://unpkg.com/@turf/turf"></script>
 
     <style>
-        /* Previous styles remain the same */
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            font-family: Arial, sans-serif;
-        }
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-        #coordinates {
-            background-color: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            position: absolute;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            max-width: 300px;
-            top: 10px;
-            left: 10px;
-        }
-        #route-details {
-            position: absolute; /* Ensures the section is positioned relative to the map */
-            top: 20px; /* Adjust distance from the top of the map */
-            left: 20px; /* Adjust distance from the left of the map */
-            z-index: 1000; /* Higher than the map's z-index to ensure it's on top */
-            background-color: white; /* Makes the background white */
-            padding: 15px; /* Adds space inside the section for better readability */
-            border-radius: 8px; /* Optional: Rounds the corners */
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2); /* Optional: Adds a shadow for better visibility */
-            max-width: 300px; /* Set a max width to prevent it from being too wide */
-            overflow-y: auto; /* Allows scrolling if content overflows */
-            font-family: Arial, sans-serif; /* Sets a clean font */
-        }
+       body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: Arial, sans-serif;
+    overflow: hidden; /* מונע גלילה מיותרת */
+    }
 
-        .instruction-container {
-            min-height: 100px;
-            margin: 10px 0;
-        }
-        .instruction-step {
-            display: none;
-            margin: 8px 0;
-            padding: 5px;
-        }
-        .instruction-step.active {
-            display: block;
-        }
-        .navigation-controls {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #ccc;
-        }
-        .nav-button {
-            padding: 5px 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-        .nav-button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        .step-indicator {
-            line-height: 30px;
-        }
-        .reset-button {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            z-index: 1000;
-            padding: 10px;
-            background-color: white;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .export-button {
+    #map {
+        width: 100%;
+        height: 100%;
+    }
+
+    #coordinates {
+        background-color: rgba(255, 255, 255, 0.9);
+        padding: 10px;
         position: absolute;
-        bottom: 70px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        max-width: 300px;
+        top: 10px;
+        left: 10px;
+        z-index: 1000;
+    }
+
+    #route-details {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        z-index: 1000;
+        background-color: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+        max-width: 300px;
+        overflow-y: auto;
+    }
+
+    .instruction-container {
+        min-height: 100px;
+        margin: 10px 0;
+    }
+
+    .instruction-step {
+        display: none;
+        margin: 8px 0;
+        padding: 5px;
+    }
+
+    .instruction-step.active {
+        display: block;
+    }
+
+    .navigation-controls {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #ccc;
+    }
+
+    .nav-button {
+        padding: 5px 10px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+
+    .nav-button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+    }
+
+    .step-indicator {
+        line-height: 30px;
+    }
+
+    .button-container {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px; /* Space between buttons */
+        z-index: 1000;
+    }
+
+    .reset-button, .addRestaurantBtn, .export-button {
+        position: absolute;
         right: 20px;
         z-index: 1000;
-        padding: 10px;
+        padding: 8px;
+        width: 85px;
         background-color: white;
         border: 1px solid #ccc;
         border-radius: 4px;
         cursor: pointer;
     }
+
+    .reset-button {
+        bottom: 20px;
+    }
+
+    .addRestaurantBtn {
+        bottom: 60px;
+    }
+
+    .export-button {
+        bottom: 100px;
+    }
+
+    /* מודאל */
+    
+
+    #modalContent {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 400px;
+        position: relative;
+    }
+
+    #modalContent span {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-size: 25px;
+        cursor: pointer;
+    }
+    #modal {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60%;
+    height: 60%;
+    background-color: rgb(145, 145, 192);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    }
+
+    /* Background Overlay */
+    #modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+    }
+
+    /* Ensure map container has a fixed size */
+    #map_res {
+        width: 100%;
+        height: 300px; /* Adjust height */
+        background-color: white;
+    }
+
+
+
+
+    button {
+        padding: 10px 20px;
+        margin-top: 10px;
+        cursor: pointer;
+        border: none;
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 4px;
+    }
+
+    button:hover {
+        background-color: #45a049;
+    }
+
+    .restaurant-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    }
+
+    .marker-container {
+        background-color: white;
+        border-radius: 10px;
+        padding: 4px;
+        box-shadow: 0px 0px 5px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .marker-container i {
+        font-size: 24px;
+        color: red;
+    }
+
+    .marker-label {
+        font-size: 12px;
+        font-weight: bold;
+        margin-top: 2px;
+    }
+    
+
+    
+
+
+
+
 </style>
 </head>
 <body>
     <div id="coordinates">Coordinates: N/A</div>
     <div id="route-details">Select two points on the map to calculate route</div>
-    <button class="reset-button" onclick="resetMap()">Reset Map</button>
-    <button class="export-button" id="Download">Export Map</button>
+    <div class="button-container">
+        <button class="reset-button" onclick="resetMap()">Reset Map</button>
+        <button class="addRestaurantBtn" onclick="openModal()">Add Point</button>
+        <button class="export-button" id="Download">Export Map</button>
+    </div>    
+    <!-- Modal for adding a restaurant -->
+    <div id="modal-overlay"></div>
+
+    <div id="modal">
+        <h2>בחר מיקום למסעדה</h2>
+        <input type="text" id="restaurantName" placeholder="שם המסעדה">
+        <div id="map_res"></div>
+        <button onclick="saveRestaurant()">שמור מסעדה</button>
+        <button onclick="closeModal()">סגור</button>
+    </div>
+
+
+<!-- Button to open the modal -->
+    
+
 
     <div id="map"></div>
 
@@ -445,8 +589,20 @@
                         source: 'osm',
                         'source-layer': 'transport_lines',
                         paint: {
-                            'line-color': '#ff0000',
+                            'line-color': '#1D2C4D',
                             'line-width': 2
+                        }
+                    },
+                    {
+                        id: 'transport_points',
+                        type: 'circle',  // Correct type for point data
+                        source: 'osm',
+                        'source-layer': 'transport_points',
+                        paint: {
+                            'circle-radius': 3, // Size of the point
+                            'circle-color': '#00ff00', // Green color
+                            'circle-stroke-width': 2,
+                            'circle-stroke-color': '#ffffff' // White border for visibility
                         }
                     },
                     {
@@ -484,6 +640,30 @@
             center: [34.782, 31.253],
             zoom: 10
         });
+
+
+        //display names
+        const popup = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false
+        });
+
+        map.on('mousemove', 'transport_lines', (e) => {
+            console.log(e);
+            if (e.features.length > 0) {
+                const roadName = e.features[0].properties.name || 'Unnamed Road';
+                
+                popup
+                    .setLngLat(e.lngLat)
+                    .setHTML(`<b>${roadName}</b>`)
+                    .addTo(map);
+            }
+        });
+
+        map.on('mouseleave', 'primary_roads', () => {
+            popup.remove();
+        });
+
     
         map.addControl(new maplibregl.NavigationControl(), 'top-right');
         map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }));
@@ -573,6 +753,199 @@
             const routeDetails = document.getElementById('route-details');
             makeDraggable(routeDetails);
         });
+
+
+        async function loadRestaurants() {
+            try {
+                const response = await fetch('/restaurants');
+                console.log("Loading restaurants...");
+                const restaurants = await response.json();
+
+                restaurants.forEach(res => {
+                    // Create a custom marker element
+                    const el = document.createElement('div');
+                    el.className = 'restaurant-marker';
+                    el.innerHTML = `
+                        <div class="marker-container">
+                            <alt="Restaurant Icon" class="marker-icon">
+                            <span class="marker-label">${res.name}</span>
+                        </div>
+                    `;
+                    
+                    // Create marker with the custom element
+                    new maplibregl.Marker(el)
+                        .setLngLat([res.lng, res.lat])
+                        .setPopup(new maplibregl.Popup().setHTML(`<b>${res.name}</b><br>${res.cuisine}`))
+                        .addTo(map);
+                });
+            } catch (error) {
+                console.error("Error loading restaurants:", error);
+            }
+        }
+
+
+
+        // Call the function after initializing the map
+        map.on('load', loadRestaurants);
+    </script>
+    <script>
+       function openModal() {
+            document.getElementById('modal').style.display = 'block';
+            setTimeout(initModalMap, 200); // Delay map initialization to ensure modal is fully visible
+        }
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        // Initialize the map inside the modal
+        function initModalMap() {
+            // Destroy any existing map instance
+            if (window.modalMap) {
+                window.modalMap.remove();
+            }
+
+            // Create a new map inside the modal
+            window.modalMap = new maplibregl.Map({
+                container: 'map_res', // ID of the div inside the modal
+                style: {
+                    version: 8,
+                    sources: {
+                        osm: {
+                            type: 'vector',
+                            tiles: ['http://localhost:8080/maps/osm/{z}/{x}/{y}.pbf']
+                        }
+                    },
+                    layers: [
+                        {
+                            id: 'transport_lines',
+                            type: 'line',
+                            source: 'osm',
+                            'source-layer': 'transport_lines',
+                            paint: {
+                                'line-color': '#1D2C4D',
+                                'line-width': 2
+                            }
+                        },
+                        {
+                            id: 'transport_points',
+                            type: 'circle',  // Correct type for point data
+                            source: 'osm',
+                            'source-layer': 'transport_points',
+                            paint: {
+                                'circle-radius': 3, // Size of the point
+                                'circle-color': '#00ff00', // Green color
+                                'circle-stroke-width': 2,
+                                'circle-stroke-color': '#ffffff' // White border for visibility
+                            }
+                        },
+                        {
+                            id: 'primary_roads',
+                            type: 'line',
+                            source: 'osm',
+                            'source-layer': 'primary_roads',
+                            paint: {
+                                'line-color': '#ffff00',
+                                'line-width': 3
+                            }
+                        },
+                        {
+                            id: 'water_areas_gen0',
+                            type: 'fill',
+                            source: 'osm',
+                            'source-layer': 'water_areas',
+                            paint: {
+                                'fill-color': '#87CEEB',
+                                'fill-opacity': 0.5
+                            }
+                        },
+                        {
+                            id: 'water_lines_gen0',
+                            type: 'line',
+                            source: 'osm',
+                            'source-layer': 'water_lines',
+                            paint: {
+                                'line-color': '#00BFFF',
+                                'line-width': 1
+                            }
+                        }
+                    ]
+                },
+                center: [34.782, 31.253],
+                zoom: 10
+            });
+
+            window.modalMap.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+            // Listen for map clicks to add markers
+            window.modalMap.on('click', function (e) {
+                addMarker(e.lngLat);
+            });
+        }
+
+        // Function to add marker and show the form
+        function addMarker(lngLat) {
+            // Remove existing marker if there is one
+            if (window.currentMarker) {
+                window.currentMarker.remove();
+            }
+
+            // Add new marker
+            window.currentMarker = new maplibregl.Marker({ draggable: true })
+                .setLngLat(lngLat)
+                .addTo(window.modalMap);
+
+            // Show the restaurant form
+            document.getElementById('restaurant-form').style.display = 'block';
+
+            // Store the coordinates in hidden fields
+            document.getElementById('lng').value = lngLat.lng;
+            document.getElementById('lat').value = lngLat.lat;
+        }
+
+        function saveRestaurant() {
+            const name = document.getElementById('restaurantName').value;
+            // const cuisine = document.getElementById('cuisine').value;
+
+            if (!name || !window.currentMarker) {
+                alert("Please fill in all fields and place a marker on the map.");
+                return;
+            }
+
+            // Get latitude and longitude from the marker
+            const { lng, lat } = window.currentMarker.getLngLat();
+
+            const restaurant = {
+                name,
+                // cuisine,
+                lng: parseFloat(lng),
+                lat: parseFloat(lat)
+            };
+
+            fetch('/add-restaurant', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(restaurant)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert("Restaurant added successfully!");
+                    document.getElementById('restaurant-form').style.display = 'none';
+                    window.currentMarker.remove(); // Remove marker after saving
+                    window.currentMarker = null;
+                } else {
+                    alert("Failed to add restaurant.");
+                }
+            })
+            .catch(error => console.error("Error:", error));
+        }
+
+        
+
+
     </script>
 </body>
 </html>
